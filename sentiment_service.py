@@ -16,8 +16,8 @@ tokenizer = None
 def load_models():
     global rnn_model, lstm_model, tokenizer
 
-    rnn_model = tf.keras.models.load_model(f"{MODELS_DIR}/rnn_model.h5")
-    lstm_model = tf.keras.models.load_model(f"{MODELS_DIR}/lstm_model.h5")
+    rnn_model = tf.keras.models.load_model(f"{MODELS_DIR}/rnn_model.h5", compile=False)
+    lstm_model = tf.keras.models.load_model(f"{MODELS_DIR}/lstm_model.h5", compile=False)
 
     with open(f"{MODELS_DIR}/tokenizer.pkl", "rb") as f:
         tokenizer = pickle.load(f)
