@@ -5,10 +5,13 @@ from pydantic import BaseModel, Field
 from typing import Literal
 
 # ─── Keras backward-compatibility patch ──────────────────────────────────────
-# Models were saved with older Keras that stored 'batch_shape' in InputLayer
-# config. Keras 2.12+ renamed this to 'batch_input_shape'. Patch from_config
-# globally before any model is loaded so all three services benefit.
+# Models were saved with Keras 3 which uses a newer serialization format.
+# Keras 2.x (bundled with TF 2.15) doesn't know about:
+#   1. 'batch_shape' in InputLayer config  → renamed to 'batch_input_shape'
+#   2. 'DTypePolicy' objects for layer dtype → should be plain string e.g. 'float32'
 import tensorflow as tf
+
+# ── Fix 1: InputLayer batch_shape ────────────────────────────────────────────
 _orig_input_from_config = tf.keras.layers.InputLayer.from_config.__func__
 
 @classmethod  # type: ignore[misc]
@@ -19,7 +22,46 @@ def _compat_input_from_config(cls, config):
     return _orig_input_from_config(cls, cfg)
 
 tf.keras.layers.InputLayer.from_config = _compat_input_from_config
+
+# ── Fix 2: DTypePolicy → register as a Keras-serializable class ──────────────
+# Keras 3 serializes every layer's dtype as a DTypePolicy dict.
+# We register a shim that Keras 2.x custom-object machinery can find.
+@tf.keras.utils.register_keras_serializable(package="keras")
+class DTypePolicy(tf.keras.mixed_precision.Policy):
+    """Keras 3 compatibility shim — wraps tf.keras.mixed_precision.Policy."""
+    @classmethod
+    def from_config(cls, config):
+        return cls(config.get("name", "float32"))
+
+# ── Fix 3: Patch every layer's from_config to flatten DTypePolicy → str ──────
+# Even with the registration above, some internal paths receive the raw dict
+# before class lookup. This ensures any remaining 'dtype' dicts are resolved.
+_orig_base_from_config = tf.keras.layers.Layer.from_config.__func__
+
+def _flatten_dtype(cfg: dict) -> dict:
+    """Recursively replace dtype DTypePolicy dicts with plain strings."""
+    result = {}
+    for k, v in cfg.items():
+        if (k == "dtype" and isinstance(v, dict)
+                and v.get("class_name") == "DTypePolicy"):
+            result[k] = v.get("config", {}).get("name", "float32")
+        elif isinstance(v, dict):
+            result[k] = _flatten_dtype(v)
+        elif isinstance(v, list):
+            result[k] = [
+                _flatten_dtype(i) if isinstance(i, dict) else i for i in v
+            ]
+        else:
+            result[k] = v
+    return result
+
+@classmethod  # type: ignore[misc]
+def _compat_layer_from_config(cls, config):
+    return _orig_base_from_config(cls, _flatten_dtype(config))
+
+tf.keras.layers.Layer.from_config = _compat_layer_from_config
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 import sentiment_service
 import nextword_service
