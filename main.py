@@ -60,7 +60,29 @@ def _compat_layer_from_config(cls, config):
     return _orig_base_from_config(cls, _flatten_dtype(config))
 
 tf.keras.layers.Layer.from_config = _compat_layer_from_config
+
+# ── Fix 4: Patch legacy serializer that raises ValueError for DTypePolicy ─────
+# The ACTUAL call site raising the error is class_and_config_for_serialized_keras_object
+# in keras/src/saving/legacy/serialization.py. It encounters a Keras 3 format
+# dict {'module':'keras','class_name':'DTypePolicy',...} and raises ValueError.
+# We intercept it and return the matching Keras 2 Policy class directly.
+try:
+    from keras.src.saving.legacy import serialization as _legacy_ser
+    _orig_class_and_config = _legacy_ser.class_and_config_for_serialized_keras_object
+
+    def _patched_class_and_config(config, custom_objects=None,
+                                   printable_module_name="object"):
+        if (isinstance(config, dict)
+                and config.get("class_name") == "DTypePolicy"):
+            name = config.get("config", {}).get("name", "float32")
+            return tf.keras.mixed_precision.Policy, {"name": name}
+        return _orig_class_and_config(config, custom_objects, printable_module_name)
+
+    _legacy_ser.class_and_config_for_serialized_keras_object = _patched_class_and_config
+except Exception as _e:
+    print(f"[compat] Could not patch legacy serializer: {_e}")
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 
 import sentiment_service
