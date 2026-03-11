@@ -70,13 +70,12 @@ try:
     from keras.src.saving.legacy import serialization as _legacy_ser
     _orig_class_and_config = _legacy_ser.class_and_config_for_serialized_keras_object
 
-    def _patched_class_and_config(config, custom_objects=None,
-                                   printable_module_name="object"):
+    def _patched_class_and_config(config, *args, **kwargs):
         if (isinstance(config, dict)
                 and config.get("class_name") == "DTypePolicy"):
             name = config.get("config", {}).get("name", "float32")
             return tf.keras.mixed_precision.Policy, {"name": name}
-        return _orig_class_and_config(config, custom_objects, printable_module_name)
+        return _orig_class_and_config(config, *args, **kwargs)
 
     _legacy_ser.class_and_config_for_serialized_keras_object = _patched_class_and_config
 except Exception as _e:
