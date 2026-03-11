@@ -1,4 +1,4 @@
-import pickle
+from tensorflow.keras.preprocessing.text import tokenizer_from_json
 import re
 import numpy as np
 import tensorflow as tf
@@ -19,8 +19,8 @@ def load_models():
     rnn_model = tf.keras.models.load_model(f"{MODELS_DIR}/rnn_model.h5", compile=False)
     lstm_model = tf.keras.models.load_model(f"{MODELS_DIR}/lstm_model.h5", compile=False)
 
-    with open(f"{MODELS_DIR}/tokenizer.pkl", "rb") as f:
-        tokenizer = pickle.load(f)
+    with open(f"{MODELS_DIR}/tokenizer.json", "r", encoding="utf-8") as f:
+        tokenizer = tokenizer_from_json(f.read())
 
     print("[sentiment_service] Models loaded.")
 

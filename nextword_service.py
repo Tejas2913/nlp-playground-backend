@@ -1,4 +1,5 @@
 import pickle
+from tensorflow.keras.preprocessing.text import tokenizer_from_json
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.preprocessing.sequence import pad_sequences
@@ -19,8 +20,8 @@ def load_models():
 
     model = tf.keras.models.load_model(f"{MODELS_DIR}/next_word_lstm_model.keras")
 
-    with open(f"{MODELS_DIR}/next_word_tokenizer.pkl", "rb") as f:
-        tokenizer = pickle.load(f)
+    with open(f"{MODELS_DIR}/next_word_tokenizer.json", "r", encoding="utf-8") as f:
+        tokenizer = tokenizer_from_json(f.read())
 
     with open(f"{MODELS_DIR}/max_seq_len.pkl", "rb") as f:
         max_seq_len = pickle.load(f)
