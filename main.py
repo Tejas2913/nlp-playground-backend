@@ -3,9 +3,28 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Literal
+
+# ─── Keras backward-compatibility patch ──────────────────────────────────────
+# Models were saved with older Keras that stored 'batch_shape' in InputLayer
+# config. Keras 2.12+ renamed this to 'batch_input_shape'. Patch from_config
+# globally before any model is loaded so all three services benefit.
+import tensorflow as tf
+_orig_input_from_config = tf.keras.layers.InputLayer.from_config.__func__
+
+@classmethod  # type: ignore[misc]
+def _compat_input_from_config(cls, config):
+    cfg = dict(config)
+    if "batch_shape" in cfg:
+        cfg["batch_input_shape"] = cfg.pop("batch_shape")
+    return _orig_input_from_config(cls, cfg)
+
+tf.keras.layers.InputLayer.from_config = _compat_input_from_config
+# ─────────────────────────────────────────────────────────────────────────────
+
 import sentiment_service
 import nextword_service
 import textgen_service
+
 
 
 # ─── Startup / Shutdown ──────────────────────────────────────────────────────
